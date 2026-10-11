@@ -9,13 +9,13 @@ from pathlib import Path
 import matplotlib
 import pandas as pd
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_JUSTIFY
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (HRFlowable, Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer,
+                                Table, TableStyle)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import config as cfg
@@ -27,18 +27,47 @@ pdfmetrics.registerFont(TTFont("Body-Bold", str(FONT_DIR / "DejaVuSans-Bold.ttf"
 pdfmetrics.registerFontFamily("Body", normal="Body", bold="Body-Bold")
 
 INK, MUTED, BLUE = colors.HexColor("#0b0b0b"), colors.HexColor("#52514e"), colors.HexColor("#1c5cab")
-body = ParagraphStyle("body", fontName="Body", fontSize=8.6, leading=11.6, textColor=INK,
-                      alignment=TA_JUSTIFY, spaceAfter=3)
-bullet = ParagraphStyle("bullet", parent=body, leftIndent=10, bulletIndent=0, spaceAfter=1.5)
-h1 = ParagraphStyle("h1", fontName="Body-Bold", fontSize=10.5, leading=13, textColor=BLUE,
-                    spaceBefore=5, spaceAfter=2)
-title = ParagraphStyle("title", fontName="Body-Bold", fontSize=14.5, leading=18, textColor=INK)
-sub = ParagraphStyle("sub", fontName="Body", fontSize=8.6, leading=11.5, textColor=MUTED, spaceAfter=2)
-caption = ParagraphStyle("caption", parent=sub, fontSize=7.8, leading=10)
+RULE, TINT = colors.HexColor("#d9d8d2"), colors.HexColor("#f1f5fb")
+WIDTH = A4[0] - 4.0 * cm - 12      # frame width minus its 6 pt padding each side
+
+body = ParagraphStyle("body", fontName="Body", fontSize=9.3, leading=13.6, textColor=INK, spaceAfter=5)
+bullet = ParagraphStyle("bullet", parent=body, leftIndent=12, bulletIndent=1, spaceAfter=4)
+cell = ParagraphStyle("cell", parent=body, fontSize=8.9, leading=12.4, spaceAfter=0)
+h1 = ParagraphStyle("h1", fontName="Body-Bold", fontSize=11.5, leading=14, textColor=BLUE,
+                    spaceBefore=11, spaceAfter=4)
+title = ParagraphStyle("title", fontName="Body-Bold", fontSize=16.5, leading=21, textColor=INK, spaceAfter=3)
+sub = ParagraphStyle("sub", fontName="Body", fontSize=8.8, leading=12.5, textColor=MUTED)
+caption = ParagraphStyle("caption", parent=sub, fontSize=8.2, leading=11, spaceAfter=4)
+tile_num = ParagraphStyle("tile_num", fontName="Body-Bold", fontSize=15, leading=18, textColor=BLUE)
+tile_lab = ParagraphStyle("tile_lab", fontName="Body", fontSize=7.8, leading=10, textColor=MUTED)
 
 
 def bullets(items):
     return [Paragraph(t, bullet, bulletText="•") for t in items]
+
+
+def stat_tiles(tiles):
+    """A row of headline numbers, each with a short label underneath."""
+    t = Table([[[Paragraph(n, tile_num), Paragraph(lab, tile_lab)] for n, lab in tiles]],
+              colWidths=[WIDTH / len(tiles)] * len(tiles))
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), TINT), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 9), ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LINEAFTER", (0, 0), (-2, -1), 3, colors.white),
+    ]))
+    return t
+
+
+def key_value_table(rows, key_width=3.3 * cm):
+    t = Table([[Paragraph(f"<b>{k}</b>", cell), Paragraph(v, cell)] for k, v in rows],
+              colWidths=[key_width, WIDTH - key_width])
+    t.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+        ("LINEBELOW", (0, 0), (-1, -2), 0.4, RULE),
+    ]))
+    return t
 
 
 def results_table(metrics, protocols, models):
@@ -56,17 +85,18 @@ def results_table(metrics, protocols, models):
                 v = metrics[(metrics.protocol == p) & (metrics.model == m) & (metrics.target == t)].r2.iloc[0]
                 row.append(f"{v:.2f}" if v > -10 else "< −10")
         rows.append(row)
-    t = Table(rows, colWidths=[3.6 * cm] + [1.75 * cm] * 8, repeatRows=2)
+    num = (WIDTH - 4.0 * cm) / 8
+    t = Table(rows, colWidths=[4.0 * cm] + [num] * 8, repeatRows=2)
     style = [
-        ("FONT", (0, 0), (-1, -1), "Body", 7.8), ("FONT", (0, 0), (-1, 1), "Body-Bold", 7.6),
+        ("FONT", (0, 0), (-1, -1), "Body", 8.6), ("FONT", (0, 0), (-1, 1), "Body-Bold", 8.3),
         ("ALIGN", (1, 0), (-1, -1), "CENTER"), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("SPAN", (0, 0), (0, 1)),
+        ("SPAN", (0, 0), (0, 1)), ("LEFTPADDING", (0, 0), (0, -1), 0),
         ("LINEBELOW", (0, 1), (-1, 1), 0.8, MUTED), ("LINEBELOW", (0, -1), (-1, -1), 0.8, MUTED),
-        ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+        ("BACKGROUND", (1, 2), (2, -1), TINT),
     ]
     for k in range(len(protocols)):   # each protocol heading spans its two target columns
         style.append(("SPAN", (1 + 2 * k, 0), (2 + 2 * k, 0)))
-        style.append(("LINEBEFORE", (1 + 2 * k, 0), (1 + 2 * k, -1), 0.4, colors.HexColor("#c3c2b7")))
     t.setStyle(TableStyle(style))
     return t
 
@@ -90,120 +120,102 @@ def main():
 
     story = [
         Paragraph("Machine learning for predicting sediment particle size distributions", title),
-        Paragraph("UE24CS352A Machine Learning · Mini-project 62 · Team B-16 · "
-                  "Bandugula Sai Rithesh Reddy (PES1UG24AM064), Gagana C (PES1UG24AM099)", sub),
+        Paragraph("UE24CS352A Machine Learning · Mini-project 62 · Team B-16", sub),
+        Paragraph("Bandugula Sai Rithesh Reddy (PES1UG24AM064) · Gagana C (PES1UG24AM099)", sub),
+        Spacer(1, 7),
+        HRFlowable(width="100%", thickness=0.8, color=RULE, spaceAfter=9),
+        stat_tiles([
+            (f"{s['n_samples']:,}", f"samples from {s['n_casts']} casts"),
+            (f"{len(s['features'])}", "input features"),
+            (f"{r(0, rf, 'd50_um'):.2f} / {r(0, rf, 'sigma_um'):.2f}", "R² (d50 / σ), random split"),
+            (f"{r(1, svr, 'd50_um'):.2f} / {r(1, svr, 'sigma_um'):.2f}", "R² (d50 / σ), unseen casts"),
+        ]),
 
         Paragraph("1. Problem statement", h1),
         Paragraph(
-            "Mud particles suspended in estuaries stick together into flocs and break apart again within "
-            "seconds to minutes. Their size sets how fast they settle, which is the most uncertain input "
-            "to sediment-transport, erosion and contaminant models. No general physical model predicts floc "
-            "size well. Following Egan (Stanford CS229, 2019), we ask whether a regression model can predict "
-            "two summaries of the particle size distribution (PSD) from routinely measured water properties: "
-            "the <b>median diameter d50</b> and the <b>spread σ</b> (the volume-weighted standard deviation "
-            "of diameter, i.e. the square root of the paper's variance σ²). Success is measured, as in the "
-            "paper, by the coefficient of determination R² on held-out data.", body),
+            "Mud particles suspended in estuaries clump into flocs and break apart again within seconds. "
+            "Their size sets how fast they settle, the most uncertain input to sediment transport models, "
+            "and no general physical model predicts it well. Following Egan (Stanford CS229, 2019), we ask "
+            "whether regression can predict two summaries of the particle size distribution from routine "
+            "water measurements: the <b>median diameter d50</b> and the <b>spread σ</b> (the square root "
+            "of the paper's variance). Success is measured by R² on held-out data.", body),
 
         Paragraph("2. Dataset", h1),
         Paragraph(
-            "The paper's own data are not public, so we used the closest public equivalent: the U.S. "
-            "Geological Survey release <i>Profiles of salinity, temperature, depth, turbidity, and "
-            "distributions of particle size in suspension … south San Francisco Bay, summer 2020</i> "
-            "(doi:10.5066/P99Q4CHM). It covers the same bay with the same instrument family (a Sequoia "
-            "LISST-200X laser particle sizer) plus an RBR CTD with a turbidity sensor.", body),
-        *bullets([
-            "<b>Coverage:</b> vertical casts at a deep channel site (11–14 m) and a shallows site (2–5 m) on "
-            "four days (21, 22, 24, 28 July 2020). The package was held about a minute at each depth.",
-            "<b>Raw size:</b> 94 LISST files (45,639 one-second samples after removing one file that "
-            "duplicates another) and 99 CTD files sampled six times a second. The LISST gives volume "
-            "concentration in 36 size classes (1.2–459 µm), temperature and beam attenuation; the CTD gives "
-            "salinity, turbidity and depth.",
-            f"<b>After cleaning:</b> {s['n_samples']:,} ten-second bursts from {s['n_casts']} casts "
-            f"({n_casts['channel']} channel, {n_casts['shallows']} shallows).",
-            "<b>Compared with the paper:</b> we have its strongest predictor, salinity, and temperature, but "
-            "not chlorophyll, refractive index or wave and tidal velocity.",
+            "The paper's data are not public, so we used the closest public equivalent: a U.S. Geological "
+            "Survey release from the same bay and instrument family (doi:10.5066/P99Q4CHM).", body),
+        key_value_table([
+            ("Coverage", "Vertical casts at a deep channel site (11–14 m) and a shallows site (2–5 m) in "
+                         "south San Francisco Bay on 21, 22, 24 and 28 July 2020."),
+            ("Instruments", "LISST-200X laser particle sizer: volume in 36 size classes (1.2–459 µm), "
+                            "temperature, beam attenuation. RBR CTD: salinity, turbidity, depth."),
+            ("Size", f"94 LISST files (45,639 one-second samples) and 99 CTD files. After cleaning: "
+                     f"{s['n_samples']:,} ten-second bursts from {s['n_casts']} casts "
+                     f"({n_casts['channel']} channel, {n_casts['shallows']} shallows)."),
+            ("Against the paper", "We have salinity and temperature, but not chlorophyll, refractive index "
+                                  "or wave and tidal velocity."),
         ]),
 
         Paragraph("3. Approach", h1),
-        Paragraph(
-            f"<b>Targets.</b> We recompute d50 and σ from each burst-averaged PSD; our d50 agrees with the "
-            f"value stored in the files (r = 0.98). <b>Features ({len(s['features'])}).</b> Sensor depth, "
-            f"height above the bed, total water depth (the tidal stage), its rate of change between casts "
-            f"(flood or ebb), temperature, salinity, turbidity, beam attenuation (a second proxy for "
-            f"sediment concentration) and a site flag. Total volume concentration was deliberately left out "
-            f"because it is computed from the PSD itself.", body),
-        Paragraph(
-            "<b>Models.</b> We reproduce the paper's two models, Random Forest and support vector "
-            "regression, and add a ridge baseline, gradient boosting and a 10-unit neural network (the "
-            "architecture of Sahin et al., 2017). As in the paper, feature importance is averaged over "
-            f"repeated 10-tree forests, the forest size ({s['n_trees']} trees) is chosen where the out-of-bag "
-            f"score levels off, and SVR's C and ε come from a validation sweep (C = {s['svr_params']['C']:g}, "
-            f"ε = {s['svr_params']['epsilon']:g} on standardised targets).", body),
-        Paragraph(
-            "<b>Evaluation: the main extension.</b> The paper closes by asking whether its models would work "
-            "at another time or place. Consecutive samples in a cast are nearly identical, so a random split "
-            "puts near-copies of every test point in the training set. We therefore report four protocols of "
-            "increasing difficulty: (1) the paper's random 70/30 split, (2) five-fold cross-validation with "
-            "whole casts held out, (3) leave-one-day-out, and (4) train on one site, test on the other.", body),
+        *bullets([
+            f"<b>Features ({len(s['features'])}).</b> Sensor depth, height above bed, water depth (tide "
+            f"stage), tide rate, temperature, salinity, turbidity, beam attenuation and site.",
+            f"<b>Models.</b> The paper's Random Forest and support vector regression (SVR), plus a ridge "
+            f"baseline, gradient boosting and a 10-unit neural network. As in the paper, forest size "
+            f"({s['n_trees']} trees) comes from the out-of-bag curve and SVR's C and ε from a validation sweep.",
+            "<b>Evaluation, our main extension.</b> Consecutive samples in a cast are nearly identical, so "
+            "a random split puts near-copies of each test point in training. We test four ways: the "
+            "paper's random 70/30 split, whole casts held out, a whole day held out, and train on one "
+            "site, test on the other.",
+        ]),
 
         Paragraph("4. Implementation", h1),
-        *bullets([
-            "<b>src/build_dataset.py</b> reads the NetCDF casts and decodes the EPIC time format. The two "
-            "instruments keep separate clocks, so it finds the 3–7 s offset each day by lining up their "
-            "depth traces, then joins them second by second. It drops in-air samples and samples outside "
-            "30–98 % optical transmission (the LISST's valid range), and averages into 10-second bursts "
-            "taken at a steady depth. Depth comes from the CTD, whose pressure sensor proved more reliable.",
-            "<b>src/psd.py</b> computes d50 (log-interpolated on the cumulative volume curve) and σ.",
-            "<b>src/train_evaluate.py</b> runs feature importance, tuning, all five models under all four "
-            "protocols and a feature-set ablation; <b>src/plots.py</b> draws the figures.",
-            "<b>demo.py</b> holds out one cast, retrains and prints predicted against measured values, or "
-            "predicts for conditions typed on the command line. Python 3, scikit-learn, xarray; fixed seed.",
-        ]),
+        key_value_table([
+            ("build_dataset.py", "Reads the NetCDF casts, corrects the 3–7 s clock offset between the two "
+                                 "instruments, removes bad samples and averages into 10-second bursts."),
+            ("psd.py", "Computes d50 and σ from each size spectrum."),
+            ("train_evaluate.py", "Feature importance, tuning, five models under four test protocols."),
+            ("demo.py", "Holds out one cast, retrains and compares predicted with measured values."),
+        ], key_width=3.6 * cm),
 
         PageBreak(),
         Paragraph("5. Results", h1),
-        Paragraph("R² on test data for each model and protocol (mean over splits; higher is better, "
-                  "below 0 is worse than predicting the mean).", caption),
+        Paragraph("R² on test data, averaged over splits. Higher is better; below 0 is worse than always "
+                  "predicting the mean. The shaded columns are the paper's protocol.", caption),
         results_table(metrics, protocols, models),
-        Spacer(1, 5),
-        Image(str(cfg.FIG_DIR / "fig8_protocol_comparison.png"), width=17.6 * cm, height=17.6 * cm * 0.652),
+        Spacer(1, 10),
+        Image(str(cfg.FIG_DIR / "fig8_protocol_comparison.png"), width=15.4 * cm, height=15.4 * cm * 0.652),
         Paragraph("Figure 1. R² of every model under the four test protocols. Bars are cut off at −0.3; "
-                  "labels give the true value.", caption),
+                  "the labels give the true values.", caption),
+        Spacer(1, 2),
         *bullets([
-            f"<b>The paper's result reproduces.</b> With a random split, Random Forest reaches R² = "
-            f"{r(0, rf, 'd50_um'):.2f} for d50 and {r(0, rf, 'sigma_um'):.2f} for σ; the paper reports 0.81 "
-            f"and 0.75 on different data and features.",
-            f"<b>Part of that score is memorised neighbours.</b> On casts the model never saw, Random Forest "
-            f"falls to {r(1, rf, 'd50_um'):.2f} and {r(1, rf, 'sigma_um'):.2f}. SVR, the smoother model, is "
-            f"now best ({r(1, svr, 'd50_um'):.2f} and {r(1, svr, 'sigma_um'):.2f}); on an unseen day it scores "
-            f"{r(2, svr, 'd50_um'):.2f} and {r(2, svr, 'sigma_um'):.2f}.",
-            "<b>Nothing transfers between sites.</b> Every model has negative R² when trained on one site "
-            "and tested on the other, because water depth and particle populations barely overlap.",
-            f"<b>What drives the predictions.</b> Sensor depth, water depth (tide stage) and beam attenuation "
-            f"matter most. Salinity, which dominated in the paper (importance 0.72 for d50), carries only "
-            f"{sal_imp.iloc[0]:.0f} % and {sal_imp.iloc[1]:.0f} % here: over our four days it stayed between "
-            f"{sal_lo:.1f} and {sal_hi:.1f} psu. With Random Forest on unseen casts, position, tide and "
-            f"temperature give R² = {hydro['d50_um']:.2f} / {hydro['sigma_um']:.2f} (d50 / σ); adding beam "
-            f"attenuation gives {attn['d50_um']:.2f} / {attn['sigma_um']:.2f}; adding salinity and turbidity "
-            f"gives {ctd['d50_um']:.2f} / {ctd['sigma_um']:.2f}.",
+            f"<b>The paper's result reproduces.</b> On a random split, Random Forest reaches R² = "
+            f"{r(0, rf, 'd50_um'):.2f} (d50) and {r(0, rf, 'sigma_um'):.2f} (σ); the paper reports 0.81 and 0.75.",
+            f"<b>Part of that score is memorised neighbours.</b> On unseen casts Random Forest falls to "
+            f"{r(1, rf, 'd50_um'):.2f} and {r(1, rf, 'sigma_um'):.2f}, and the smoother SVR becomes the best "
+            f"model ({r(1, svr, 'd50_um'):.2f} and {r(1, svr, 'sigma_um'):.2f}).",
+            "<b>Nothing transfers between sites.</b> Every model scores below zero, because the two sites "
+            "barely overlap in water depth or particle size.",
+            f"<b>Salinity is not the main driver here.</b> Depth, tide stage and beam attenuation matter "
+            f"most. Salinity carries {sal_imp.iloc[0]:.0f} % of the importance against 72 % in the paper; "
+            f"it only ranged from {sal_lo:.1f} to {sal_hi:.1f} psu. Adding salinity and turbidity lifts "
+            f"unseen-cast R² from {attn['d50_um']:.2f} / {attn['sigma_um']:.2f} to "
+            f"{ctd['d50_um']:.2f} / {ctd['sigma_um']:.2f}.",
         ]),
 
         Paragraph("6. Conclusions", h1),
         Paragraph(
-            f"From depth, tide, temperature, salinity and two optical measurements, machine learning explains "
-            f"about {100 * r(1, rf, 'd50_um'):.0f}–{100 * r(1, svr, 'sigma_um'):.0f} % of the variation in "
-            f"floc size and spread on new casts. That is useful, but short of the {low_rand:.2f}–{best_rand:.2f} "
-            f"a random split suggests. The headline lesson is methodological: for autocorrelated field data "
-            f"the split decides the score, and the paper's worry about overfitting was justified. Limits of "
-            f"our study: four days in one summer, two sites, a very narrow salinity range, and beam "
-            f"attenuation measured by the same instrument as the targets. The next step is to add current "
-            f"and wave measurements from the release's hydrodynamic time series and to train across more "
-            f"sites and seasons.", body),
+            f"Machine learning explains about {100 * r(1, rf, 'd50_um'):.0f}–{100 * r(1, svr, 'sigma_um'):.0f} % "
+            f"of the variation in floc size and spread on new casts: useful, but short of the "
+            f"{low_rand:.2f}–{best_rand:.2f} a random split suggests. For autocorrelated field data the "
+            f"split decides the score, so the paper's worry about overfitting was justified. Our limits "
+            f"are four days in one summer, two sites and a narrow salinity range. The next step is to add "
+            f"current and wave measurements and to train across more sites and seasons.", body),
     ]
 
     out = Path(__file__).with_name("writeup.pdf")
-    doc = SimpleDocTemplate(str(out), pagesize=A4, leftMargin=1.7 * cm, rightMargin=1.7 * cm,
-                            topMargin=1.3 * cm, bottomMargin=1.2 * cm,
+    doc = SimpleDocTemplate(str(out), pagesize=A4, leftMargin=2.0 * cm, rightMargin=2.0 * cm,
+                            topMargin=1.7 * cm, bottomMargin=1.5 * cm,
                             title="Machine learning for predicting sediment particle size distributions",
                             author="Team B-16")
     doc.build(story)
