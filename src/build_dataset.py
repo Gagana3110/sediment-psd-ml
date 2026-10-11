@@ -87,11 +87,14 @@ def read_ctd(path):
     with xr.open_dataset(path, decode_times=False) as ds:
         out = pd.DataFrame({"time": epic_time(ds)})
         for col, prefixes in {"salinity_psu": ("s_", "sal"),
-                              "turbidity_ntu": ("turb", "ntu", "nep"),
-                              "ctd_depth_m": ("d_", "depth")}.items():
+                              "turbidity_ntu": ("trb", "turb", "ntu"),
+                              "ctd_depth_m": ("d_",)}.items():
             name = find_var(ds, prefixes)
             if name is not None:
                 out[col] = squeeze(ds, name)
+    # the CTD samples at 6 Hz; reduce to one row per second to match the LISST
+    out["sec"] = out.pop("time").dt.floor("s")
+    out = out.groupby("sec", as_index=False).median()
     out["site"] = site
     return out
 
@@ -121,24 +124,53 @@ def load_raw():
             pd.concat(ctd, ignore_index=True) if ctd else None, centers)
 
 
+def clock_lag_per_day(df, ctd, max_lag=15):
+    """Seconds to add to CTD time so its depth trace lines up with the LISST's.
+
+    The two instruments keep separate clocks. For every cast we find the shift
+    that makes the two depth traces most parallel, then take the median per day.
+    """
+    lags = []
+    for (site, date, _), g in df.dropna(subset=["depth_m"]).groupby(["site", "date", "profile"]):
+        c = ctd.loc[ctd["site"] == site].set_index("sec")["ctd_depth_m"]
+        best = (np.inf, None)
+        for lag in range(-max_lag, max_lag + 1):
+            diff = g["depth_m"].values - c.reindex(g["sec"] - pd.Timedelta(seconds=lag)).values
+            diff = diff[~np.isnan(diff)]
+            if len(diff) >= 60 and np.ptp(g["depth_m"].values) > 1 and diff.std() < best[0]:
+                best = (diff.std(), lag)
+        if best[1] is not None:
+            lags.append((date, best[1]))
+    return pd.DataFrame(lags, columns=["date", "lag"]).groupby("date")["lag"].median().round().astype(int)
+
+
 def merge_ctd(df, ctd):
-    """Attach the CTD sample nearest in time (same site, within 2 s)."""
-    cols = [c for c in cfg.CTD_FEATURES if c in ctd.columns]
-    df = df.sort_values("time")
-    ctd = ctd.sort_values("time")[["time", "site"] + cols].dropna(subset=cols)
-    merged = pd.merge_asof(df, ctd, on="time", by="site", direction="nearest",
-                           tolerance=pd.Timedelta("2s"))
-    print(f"CTD merged: {merged[cols[0]].notna().mean():.0%} of LISST samples matched")
-    return merged.sort_index()
+    """Attach the CTD reading taken in the same second at the same site."""
+    df["sec"] = df["time"].dt.round("s")
+    df["date"] = df["time"].dt.strftime("%Y-%m-%d")
+    lags = clock_lag_per_day(df, ctd)
+    print("CTD clock lag (s) per day:", lags.to_dict())
+    ctd = ctd.copy()
+    shift = ctd["sec"].dt.strftime("%Y-%m-%d").map(lags).fillna(lags.median())
+    ctd["sec"] = ctd["sec"] + pd.to_timedelta(shift, unit="s")
+    merged = df.merge(ctd.drop_duplicates(["site", "sec"]), on=["site", "sec"], how="left")
+    print(f"CTD merged: {merged['salinity_psu'].notna().mean():.0%} of LISST samples matched")
+    # the CTD's pressure sensor is the more reliable of the two, so it defines depth
+    merged["lisst_depth_m"] = merged["depth_m"]
+    merged["depth_m"] = merged["ctd_depth_m"]
+    return merged.drop(columns=["sec", "date", "ctd_depth_m"])
 
 
 def quality_mask(df):
-    return (
+    ok = (
         df["depth_m"].ge(cfg.MIN_DEPTH_M)
         & df["depth_m"].le(df["water_depth_m"] + 1.0)        # deeper than the bed = bad pressure
         & df["ptrans"].between(cfg.PTRANS_MIN, cfg.PTRANS_MAX)
         & df["attn_m1"].gt(0)
     )
+    if "salinity_psu" in df.columns:
+        ok &= df["salinity_psu"].gt(cfg.MIN_SALINITY) & df["turbidity_ntu"].gt(0)
+    return ok
 
 
 def add_tide_rate(bursts):

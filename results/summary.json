@@ -1,6 +1,6 @@
 {
-  "n_samples": 3731,
-  "n_casts": 89,
+  "n_samples": 3998,
+  "n_casts": 92,
   "n_days": 4,
   "features": [
     "depth_m",
@@ -9,107 +9,109 @@
     "tide_rate_m_per_hr",
     "temp_C",
     "site_channel",
-    "attn_m1"
+    "attn_m1",
+    "salinity_psu",
+    "turbidity_ntu"
   ],
-  "has_ctd": false,
+  "has_ctd": true,
   "n_trees": 50,
   "svr_params": {
-    "C": 0.25,
-    "epsilon": 0.03125
+    "C": 0.5,
+    "epsilon": 0.25
   },
   "top4_features": [
     "water_depth_m",
     "depth_m",
-    "temp_C",
-    "attn_m1"
+    "attn_m1",
+    "salinity_psu"
   ],
   "r2": {
     "Random 70/30 (paper)": {
       "Ridge (linear baseline)": {
-        "d50_um": 0.384,
-        "sigma_um": 0.42
+        "d50_um": 0.433,
+        "sigma_um": 0.525
       },
       "Random Forest": {
-        "d50_um": 0.838,
-        "sigma_um": 0.777
+        "d50_um": 0.861,
+        "sigma_um": 0.819
       },
       "SVR (RBF)": {
-        "d50_um": 0.639,
-        "sigma_um": 0.639
+        "d50_um": 0.691,
+        "sigma_um": 0.723
       },
       "Gradient Boosting": {
-        "d50_um": 0.83,
-        "sigma_um": 0.766
+        "d50_um": 0.845,
+        "sigma_um": 0.812
       },
       "Neural net (10 units)": {
-        "d50_um": 0.674,
-        "sigma_um": 0.649
+        "d50_um": 0.686,
+        "sigma_um": 0.718
       }
     },
     "Unseen casts (5-fold)": {
       "Ridge (linear baseline)": {
-        "d50_um": 0.323,
-        "sigma_um": 0.391
+        "d50_um": 0.358,
+        "sigma_um": 0.447
       },
       "Random Forest": {
-        "d50_um": 0.408,
-        "sigma_um": 0.543
+        "d50_um": 0.557,
+        "sigma_um": 0.58
       },
       "SVR (RBF)": {
-        "d50_um": 0.516,
-        "sigma_um": 0.578
+        "d50_um": 0.6,
+        "sigma_um": 0.623
       },
       "Gradient Boosting": {
-        "d50_um": 0.46,
-        "sigma_um": 0.548
+        "d50_um": 0.586,
+        "sigma_um": 0.596
       },
       "Neural net (10 units)": {
-        "d50_um": 0.507,
-        "sigma_um": 0.552
+        "d50_um": 0.534,
+        "sigma_um": 0.619
       }
     },
     "Unseen day (leave-one-out)": {
       "Ridge (linear baseline)": {
-        "d50_um": 0.108,
-        "sigma_um": 0.166
+        "d50_um": 0.186,
+        "sigma_um": 0.306
       },
       "Random Forest": {
-        "d50_um": 0.323,
-        "sigma_um": 0.422
+        "d50_um": 0.348,
+        "sigma_um": 0.462
       },
       "SVR (RBF)": {
-        "d50_um": 0.46,
-        "sigma_um": 0.474
+        "d50_um": 0.455,
+        "sigma_um": 0.527
       },
       "Gradient Boosting": {
-        "d50_um": 0.425,
-        "sigma_um": 0.446
+        "d50_um": 0.421,
+        "sigma_um": 0.504
       },
       "Neural net (10 units)": {
-        "d50_um": 0.427,
-        "sigma_um": 0.403
+        "d50_um": 0.341,
+        "sigma_um": 0.519
       }
     },
     "Unseen site": {
       "Ridge (linear baseline)": {
-        "d50_um": -12.056,
-        "sigma_um": -45.082
+        "d50_um": -5.391,
+        "sigma_um": -31.483
       },
       "Random Forest": {
-        "d50_um": -1.045,
-        "sigma_um": -0.927
+        "d50_um": -1.666,
+        "sigma_um": -0.954
       },
       "SVR (RBF)": {
-        "d50_um": -1.747,
-        "sigma_um": -2.03
+        "d50_um": -1.902,
+        "sigma_um": -3.835
       },
       "Gradient Boosting": {
-        "d50_um": -1.482,
-        "sigma_um": -0.833
+        "d50_um": -2.324,
+        "sigma_um": -1.167
       },
       "Neural net (10 units)": {
-        "d50_um": -128.949,
-        "sigma_um": -24.422
+        "d50_um": -92.566,
+        "sigma_um": -7.093
       }
     }
   }

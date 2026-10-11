@@ -17,6 +17,7 @@ SEED = 42
 # transmission (below: multiple scattering, above: too few particles).
 PTRANS_MIN, PTRANS_MAX = 30.0, 98.0
 MIN_DEPTH_M = 0.3            # shallower samples are in air / bubbles
+MIN_SALINITY = 20.0          # psu; the CTD reads near zero until it is submerged
 BURST_SECONDS = 10           # 1 Hz samples are averaged into bursts this long
 MIN_SAMPLES_PER_BURST = 6
 MAX_DEPTH_RANGE_IN_BURST = 0.3   # m; rejects bursts taken while the package moves

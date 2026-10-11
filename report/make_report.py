@@ -75,10 +75,18 @@ def main():
     s = json.loads((cfg.RESULTS_DIR / "summary.json").read_text())
     metrics = pd.read_csv(cfg.RESULTS_DIR / "metrics.csv")
     ablation = pd.read_csv(cfg.RESULTS_DIR / "ablation.csv")
+    imp = pd.read_csv(cfg.RESULTS_DIR / "feature_importance.csv", index_col=0)
+    data = pd.read_csv(cfg.DATASET_CSV)
     protocols, models = list(s["r2"]), list(s["r2"][next(iter(s["r2"]))])
     r = lambda p, m, t: s["r2"][protocols[p]][m][t]
     rf, svr = "Random Forest", "SVR (RBF)"
-    hydro = ablation[ablation.feature_set.str.startswith("Position")].set_index("target").r2
+    abl = lambda prefix: ablation[ablation.feature_set.str.startswith(prefix)].set_index("target").r2
+    hydro, attn, ctd = abl("Position"), abl("+ beam"), abl("+ salinity")
+    sal_imp = 100 * imp.loc["salinity_psu", ["impurity_d50_um", "impurity_sigma_um"]]
+    sal_lo, sal_hi = data.salinity_psu.min(), data.salinity_psu.max()
+    n_casts = data.groupby("site").profile.nunique()
+    best_rand = max(r(0, m, t) for m in models for t in cfg.TARGETS)
+    low_rand = min(r(0, rf, t) for t in cfg.TARGETS)
 
     story = [
         Paragraph("Machine learning for predicting sediment particle size distributions", title),
@@ -102,26 +110,28 @@ def main():
             "Geological Survey release <i>Profiles of salinity, temperature, depth, turbidity, and "
             "distributions of particle size in suspension … south San Francisco Bay, summer 2020</i> "
             "(doi:10.5066/P99Q4CHM). It covers the same bay with the same instrument family (a Sequoia "
-            "LISST-200X laser particle sizer).", body),
+            "LISST-200X laser particle sizer) plus an RBR CTD with a turbidity sensor.", body),
         *bullets([
-            f"<b>Coverage:</b> vertical casts at a deep channel site (11–14 m) and a shallows site (2–5 m) on "
-            f"four days (21, 22, 24, 28 July 2020). The package was held about a minute at each depth.",
-            "<b>Raw size:</b> 94 NetCDF files, 45,639 one-second samples after removing one file that is a "
-            "duplicate of another. Each sample has the volume concentration in 36 size classes "
-            "(1.2–459 µm), depth, temperature and beam attenuation.",
-            f"<b>After cleaning:</b> {s['n_samples']:,} ten-second bursts from {s['n_casts']} casts.",
-            "<b>What is missing:</b> the CTD files holding salinity and turbidity could not be downloaded "
-            "(the published links return “page not found”), and the release has no chlorophyll or refractive "
-            "index. Salinity was the paper's strongest predictor, so our feature set is weaker than theirs.",
+            "<b>Coverage:</b> vertical casts at a deep channel site (11–14 m) and a shallows site (2–5 m) on "
+            "four days (21, 22, 24, 28 July 2020). The package was held about a minute at each depth.",
+            "<b>Raw size:</b> 94 LISST files (45,639 one-second samples after removing one file that "
+            "duplicates another) and 99 CTD files sampled six times a second. The LISST gives volume "
+            "concentration in 36 size classes (1.2–459 µm), temperature and beam attenuation; the CTD gives "
+            "salinity, turbidity and depth.",
+            f"<b>After cleaning:</b> {s['n_samples']:,} ten-second bursts from {s['n_casts']} casts "
+            f"({n_casts['channel']} channel, {n_casts['shallows']} shallows).",
+            "<b>Compared with the paper:</b> we have its strongest predictor, salinity, and temperature, but "
+            "not chlorophyll, refractive index or wave and tidal velocity.",
         ]),
 
         Paragraph("3. Approach", h1),
         Paragraph(
-            "<b>Targets.</b> We recompute d50 and σ from each burst-averaged PSD; our d50 agrees with the "
-            "value stored in the files (r = 0.97). <b>Features (7).</b> Sensor depth, height above the bed, "
-            "total water depth (the tidal stage), its rate of change between casts (flood or ebb), "
-            "temperature, beam attenuation (a proxy for sediment concentration) and a site flag. Total "
-            "volume concentration was deliberately left out because it is computed from the PSD itself.", body),
+            f"<b>Targets.</b> We recompute d50 and σ from each burst-averaged PSD; our d50 agrees with the "
+            f"value stored in the files (r = 0.98). <b>Features ({len(s['features'])}).</b> Sensor depth, "
+            f"height above the bed, total water depth (the tidal stage), its rate of change between casts "
+            f"(flood or ebb), temperature, salinity, turbidity, beam attenuation (a second proxy for "
+            f"sediment concentration) and a site flag. Total volume concentration was deliberately left out "
+            f"because it is computed from the PSD itself.", body),
         Paragraph(
             "<b>Models.</b> We reproduce the paper's two models, Random Forest and support vector "
             "regression, and add a ridge baseline, gradient boosting and a 10-unit neural network (the "
@@ -138,9 +148,11 @@ def main():
 
         Paragraph("4. Implementation", h1),
         *bullets([
-            "<b>src/build_dataset.py</b> reads the NetCDF casts, decodes the EPIC time format, drops "
-            "in-air samples, samples outside 30–98 % optical transmission (the instrument's valid range) "
-            "and readings below the sea bed, then averages into 10-second bursts taken at a steady depth.",
+            "<b>src/build_dataset.py</b> reads the NetCDF casts and decodes the EPIC time format. The two "
+            "instruments keep separate clocks, so it finds the 3–7 s offset each day by lining up their "
+            "depth traces, then joins them second by second. It drops in-air samples and samples outside "
+            "30–98 % optical transmission (the LISST's valid range), and averages into 10-second bursts "
+            "taken at a steady depth. Depth comes from the CTD, whose pressure sensor proved more reliable.",
             "<b>src/psd.py</b> computes d50 (log-interpolated on the cumulative volume curve) and σ.",
             "<b>src/train_evaluate.py</b> runs feature importance, tuning, all five models under all four "
             "protocols and a feature-set ablation; <b>src/plots.py</b> draws the figures.",
@@ -161,28 +173,32 @@ def main():
             f"<b>The paper's result reproduces.</b> With a random split, Random Forest reaches R² = "
             f"{r(0, rf, 'd50_um'):.2f} for d50 and {r(0, rf, 'sigma_um'):.2f} for σ; the paper reports 0.81 "
             f"and 0.75 on different data and features.",
-            f"<b>Most of that score is memorised neighbours.</b> On casts the model never saw, Random Forest "
+            f"<b>Part of that score is memorised neighbours.</b> On casts the model never saw, Random Forest "
             f"falls to {r(1, rf, 'd50_um'):.2f} and {r(1, rf, 'sigma_um'):.2f}. SVR, the smoother model, is "
             f"now best ({r(1, svr, 'd50_um'):.2f} and {r(1, svr, 'sigma_um'):.2f}); on an unseen day it scores "
             f"{r(2, svr, 'd50_um'):.2f} and {r(2, svr, 'sigma_um'):.2f}.",
             "<b>Nothing transfers between sites.</b> Every model has negative R² when trained on one site "
             "and tested on the other, because water depth and particle populations barely overlap.",
-            f"<b>What drives the predictions.</b> Water depth (tide stage), sensor depth and beam attenuation "
-            f"matter most; site and tide rate add almost nothing. Position, tide and temperature alone give "
-            f"R² = {hydro['d50_um']:.2f} (d50) and {hydro['sigma_um']:.2f} (σ) on unseen casts with Random "
-            f"Forest; adding attenuation helps σ but not d50.",
+            f"<b>What drives the predictions.</b> Sensor depth, water depth (tide stage) and beam attenuation "
+            f"matter most. Salinity, which dominated in the paper (importance 0.72 for d50), carries only "
+            f"{sal_imp.iloc[0]:.0f} % and {sal_imp.iloc[1]:.0f} % here: over our four days it stayed between "
+            f"{sal_lo:.1f} and {sal_hi:.1f} psu. With Random Forest on unseen casts, position, tide and "
+            f"temperature give R² = {hydro['d50_um']:.2f} / {hydro['sigma_um']:.2f} (d50 / σ); adding beam "
+            f"attenuation gives {attn['d50_um']:.2f} / {attn['sigma_um']:.2f}; adding salinity and turbidity "
+            f"gives {ctd['d50_um']:.2f} / {ctd['sigma_um']:.2f}.",
         ]),
 
         Paragraph("6. Conclusions", h1),
         Paragraph(
-            "Machine learning can explain roughly half of the variation in floc size and spread on new casts "
-            "from depth, tide, temperature and optical attenuation alone, which is useful but well short of "
-            "the 0.75–0.84 a random split suggests. The headline lesson is methodological: for "
-            "autocorrelated field data the split decides the score, and the paper's worry about overfitting "
-            "was justified. Limits of our study: four days in one summer, two sites, and no salinity or "
-            "turbidity. Adding the CTD data and the hydrodynamic measurements from the parent USGS release "
-            "is the obvious next step; the pipeline merges CTD casts automatically when they "
-            "are present, though that path is untested.", body),
+            f"From depth, tide, temperature, salinity and two optical measurements, machine learning explains "
+            f"about {100 * r(1, rf, 'd50_um'):.0f}–{100 * r(1, svr, 'sigma_um'):.0f} % of the variation in "
+            f"floc size and spread on new casts. That is useful, but short of the {low_rand:.2f}–{best_rand:.2f} "
+            f"a random split suggests. The headline lesson is methodological: for autocorrelated field data "
+            f"the split decides the score, and the paper's worry about overfitting was justified. Limits of "
+            f"our study: four days in one summer, two sites, a very narrow salinity range, and beam "
+            f"attenuation measured by the same instrument as the targets. The next step is to add current "
+            f"and wave measurements from the release's hydrodynamic time series and to train across more "
+            f"sites and seasons.", body),
     ]
 
     out = Path(__file__).with_name("writeup.pdf")

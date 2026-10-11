@@ -1,4 +1,4 @@
-﻿"""Build the review presentation (report/slides.pptx) from the results on disk.
+"""Build the review presentation (report/slides.pptx) from the results on disk.
 
 Usage:  python report/make_slides.py
 """
@@ -145,14 +145,16 @@ def main():
     ], 0.6, 1.75, 12, 5, size=17)
 
     # 4 dataset
-    sl = d.slide("We used USGS casts from the same bay: two sites, four days, 94 files", "Dataset")
+    sl = d.slide("We used USGS casts from the same bay: two sites, four days, 193 files", "Dataset")
     d.text(sl, [
         "Source||USGS data release, South San Francisco Bay, summer 2020 (doi:10.5066/P99Q4CHM). "
         "Same bay and instrument family as the paper.",
         "Design||Vertical casts at a channel site (11–14 m deep) and a shallows site (2–5 m), "
         "about one minute at each depth, on 21, 22, 24 and 28 July 2020.",
-        "Contents||36-class particle size spectrum, depth, temperature and beam attenuation, once per second.",
-        "Missing||Salinity and turbidity (the CTD download links are dead); no chlorophyll or refractive index.",
+        "Contents||LISST: 36-class particle size spectrum, temperature, beam attenuation. "
+        "CTD: salinity, turbidity, depth.",
+        "Compared with the paper||We have salinity and temperature; no chlorophyll, refractive index "
+        "or wave and tidal velocity.",
     ], 0.6, 1.75, 12, 2.6, size=16)
     d.image(sl, "fig2_data_overview.png", 0.6, 4.05, 12.1, 3.1)
 
@@ -160,20 +162,21 @@ def main():
     sl = d.slide(f"Cleaning turned 45,639 raw samples into {s['n_samples']:,} reliable bursts", "Data preparation")
     d.table(sl, [
         ["Step", "What it removes or does", "Rows left"],
-        ["Read 94 NetCDF files", "Decode the EPIC time format; drop one file that duplicates another", "45,639"],
-        ["Quality control", "In-air samples, optical transmission outside 30–98 %, depths below the bed", "31,896"],
+        ["Read 193 NetCDF files", "Decode the EPIC time format; drop one LISST file that duplicates another", "45,639"],
+        ["Join CTD to LISST", "Correct the 3–7 s clock offset each day, then match second by second", "45,639"],
+        ["Quality control", "In-air samples, optical transmission outside 30–98 %, readings with no CTD match", "33,108"],
         ["Burst averaging", "Average 10 s at a steady depth so one row is one stable measurement",
          f"{s['n_samples']:,}"],
-        ["Targets", "Recompute d50 and σ from each averaged spectrum (r = 0.97 against the file's d50)",
+        ["Targets", "Recompute d50 and σ from each averaged spectrum (r = 0.98 against the file's d50)",
          f"{s['n_samples']:,}"],
-    ], 0.6, 1.9, 12.1, [2.9, 7.6, 1.6], size=14)
+    ], 0.6, 1.8, 12.1, [2.9, 7.6, 1.6], size=13)
     d.text(sl, [
-        f"Final table||{s['n_samples']:,} bursts from {s['n_casts']} casts (50 channel, 39 shallows).",
-        "Features (7)||Sensor depth, height above bed, water depth (tide stage), tide rate, temperature, "
-        "beam attenuation, site.",
+        f"Final table||{s['n_samples']:,} bursts from {s['n_casts']} casts (50 channel, 42 shallows).",
+        "Features (9)||Sensor depth, height above bed, water depth (tide stage), tide rate, temperature, "
+        "salinity, turbidity, beam attenuation, site.",
         "Left out on purpose||Total volume concentration, because it is computed from the size spectrum "
         "itself and would leak the answer.",
-    ], 0.6, 4.6, 12.1, 2.4, size=16)
+    ], 0.6, 4.75, 12.1, 2.3, size=16)
 
     # 6 method
     sl = d.slide("Five models, four test protocols of increasing difficulty", "Method")
@@ -201,14 +204,13 @@ def main():
     # 7 importance
     top = imp[["impurity_d50_um", "impurity_sigma_um"]].mean(axis=1).sort_values(ascending=False)
     share = lambda f: f"{100 * imp.loc[f, 'impurity_d50_um']:.0f} % / {100 * imp.loc[f, 'impurity_sigma_um']:.0f} %"
-    sl = d.slide("Tide stage, depth and attenuation carry the signal; site adds almost nothing",
+    sl = d.slide("Depth, tide stage and attenuation carry the signal; salinity matters far less than in the paper",
                  "Feature importance")
     d.image(sl, "fig3_feature_importance.png", 0.6, 1.8, 12.1, 3.9)
     d.text(sl, [
-        f"Water depth (tide stage) leads for both targets (importance {share('water_depth_m')} for d50 / σ); "
-        f"salinity played this role in the paper.",
-        "Both methods agree on the top four. Permutation importance on unseen casts rates beam attenuation "
-        "higher and temperature lower than the paper's method does.",
+        f"Sensor depth leads for d50 and water depth for σ. Salinity scores {share('salinity_psu')} "
+        f"(d50 / σ) against 72 % / 56 % in the paper: over our four days it only varied by about 2 psu.",
+        "Permutation importance on unseen casts rates beam attenuation much higher than the paper's method does.",
     ], 0.6, 5.85, 12.1, 1.2, size=15)
 
     # 8 tuning
@@ -239,7 +241,7 @@ def main():
     ], 7.2, 4.4, 5.5, 2.6, size=15)
 
     # 10 generalisation
-    sl = d.slide("On data the model has not seen, accuracy halves, then collapses across sites",
+    sl = d.slide("On data the model has not seen, accuracy drops by a third, then collapses across sites",
                  "Result 2: generalisation")
     d.image(sl, "fig8_protocol_comparison.png", 0.4, 1.7, 8.3, 5.5)
     d.text(sl, [
@@ -254,19 +256,19 @@ def main():
     ], 8.9, 1.8, 4.0, 5.3, size=14)
 
     # 11 conclusions
-    sl = d.slide("Conclusions: about half the variation is predictable; the split decides the score", "Conclusions")
+    sl = d.slide("Conclusions: about 60 % of the variation is predictable; the split decides the score", "Conclusions")
     d.text(sl, [
-        "What works||Depth, tide stage, temperature and optical attenuation explain roughly half of the "
-        "variation in d50 and σ on new casts.",
+        "What works||Depth, tide stage, salinity, temperature and two optical measurements explain about "
+        "56–62 % of the variation in d50 and σ on new casts.",
         "What the paper's score hid||Its R² of 0.75 to 0.81 came from a random split of autocorrelated data. "
-        "We reproduce it, then show it does not survive grouped testing. Its overfitting concern was justified.",
+        "We reproduce it, then show it falls under grouped testing. Its overfitting concern was justified.",
         "What does not work||Transfer to a different site. A general model needs training data from many sites.",
         "Limitations||Three to keep in mind.",
         ("Four days in one summer and two sites", 1),
-        ("No salinity or turbidity: the CTD files could not be downloaded", 1),
+        ("Salinity varied by only about 2 psu, so its effect is barely tested", 1),
         ("Beam attenuation comes from the same instrument as the targets", 1),
-        "Next steps||Add the CTD and hydrodynamic data from the parent USGS release; train across more "
-        "sites and seasons.",
+        "Next steps||Add current and wave measurements from the release's hydrodynamic time series; "
+        "train across more sites and seasons.",
     ], 0.6, 1.75, 12.1, 5.3, size=16)
 
     # 12 demo
