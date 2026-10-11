@@ -1,0 +1,10 @@
+# raw USGS downloads - see README for how to get them
+data/raw/
+
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+.claude/
+figures/demo_cast_*.png

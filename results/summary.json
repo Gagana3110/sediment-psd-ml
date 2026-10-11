@@ -1,0 +1,116 @@
+{
+  "n_samples": 3731,
+  "n_casts": 89,
+  "n_days": 4,
+  "features": [
+    "depth_m",
+    "height_above_bed_m",
+    "water_depth_m",
+    "tide_rate_m_per_hr",
+    "temp_C",
+    "site_channel",
+    "attn_m1"
+  ],
+  "has_ctd": false,
+  "n_trees": 50,
+  "svr_params": {
+    "C": 0.25,
+    "epsilon": 0.03125
+  },
+  "top4_features": [
+    "water_depth_m",
+    "depth_m",
+    "temp_C",
+    "attn_m1"
+  ],
+  "r2": {
+    "Random 70/30 (paper)": {
+      "Ridge (linear baseline)": {
+        "d50_um": 0.384,
+        "sigma_um": 0.42
+      },
+      "Random Forest": {
+        "d50_um": 0.838,
+        "sigma_um": 0.777
+      },
+      "SVR (RBF)": {
+        "d50_um": 0.639,
+        "sigma_um": 0.639
+      },
+      "Gradient Boosting": {
+        "d50_um": 0.83,
+        "sigma_um": 0.766
+      },
+      "Neural net (10 units)": {
+        "d50_um": 0.674,
+        "sigma_um": 0.649
+      }
+    },
+    "Unseen casts (5-fold)": {
+      "Ridge (linear baseline)": {
+        "d50_um": 0.323,
+        "sigma_um": 0.391
+      },
+      "Random Forest": {
+        "d50_um": 0.408,
+        "sigma_um": 0.543
+      },
+      "SVR (RBF)": {
+        "d50_um": 0.516,
+        "sigma_um": 0.578
+      },
+      "Gradient Boosting": {
+        "d50_um": 0.46,
+        "sigma_um": 0.548
+      },
+      "Neural net (10 units)": {
+        "d50_um": 0.507,
+        "sigma_um": 0.552
+      }
+    },
+    "Unseen day (leave-one-out)": {
+      "Ridge (linear baseline)": {
+        "d50_um": 0.108,
+        "sigma_um": 0.166
+      },
+      "Random Forest": {
+        "d50_um": 0.323,
+        "sigma_um": 0.422
+      },
+      "SVR (RBF)": {
+        "d50_um": 0.46,
+        "sigma_um": 0.474
+      },
+      "Gradient Boosting": {
+        "d50_um": 0.425,
+        "sigma_um": 0.446
+      },
+      "Neural net (10 units)": {
+        "d50_um": 0.427,
+        "sigma_um": 0.403
+      }
+    },
+    "Unseen site": {
+      "Ridge (linear baseline)": {
+        "d50_um": -12.056,
+        "sigma_um": -45.082
+      },
+      "Random Forest": {
+        "d50_um": -1.045,
+        "sigma_um": -0.927
+      },
+      "SVR (RBF)": {
+        "d50_um": -1.747,
+        "sigma_um": -2.03
+      },
+      "Gradient Boosting": {
+        "d50_um": -1.482,
+        "sigma_um": -0.833
+      },
+      "Neural net (10 units)": {
+        "d50_um": -128.949,
+        "sigma_um": -24.422
+      }
+    }
+  }
+}

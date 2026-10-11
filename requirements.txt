@@ -1,0 +1,10 @@
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+matplotlib>=3.8
+xarray>=2024.1
+netCDF4>=1.6
+joblib>=1.3
+# only needed to rebuild the write-up and slides
+reportlab>=4.0
+python-pptx>=1.0
