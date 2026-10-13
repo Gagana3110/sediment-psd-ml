@@ -1,7 +1,7 @@
 # Machine learning for predicting sediment particle size distributions
 
 
-#Bandugula Sai Rithesh Reddy (PES1UG24AM064) and Gagana C (PES1UG24AM099)
+## Bandugula Sai Rithesh Reddy (PES1UG24AM064) and Gagana C (PES1UG24AM099)
 
 
 We predict two summaries of the suspended-sediment particle size distribution, the
