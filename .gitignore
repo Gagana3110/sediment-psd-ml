@@ -8,3 +8,5 @@ __pycache__/
 venv/
 .claude/
 figures/demo_cast_*.png
+
+.DS_Store
